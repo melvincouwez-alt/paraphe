@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Name=Paraphe
+GenericName=Éditeur de PDF
+Comment=Annoter, remplir, signer, fusionner et découper des PDF
+Keywords=PDF;annoter;surligner;signer;signature;formulaire;fusionner;découper;
+Exec=paraphe %U
+Icon=io.github.melvincouwez.Paraphe
+Terminal=false
+Categories=Office;Viewer;GTK;
+MimeType=application/pdf;
+StartupNotify=true
+StartupWMClass=io.github.melvincouwez.Paraphe

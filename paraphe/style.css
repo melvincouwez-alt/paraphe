@@ -1,0 +1,143 @@
+/* Paraphe. Neutral window, ink-blue accent, floating controls over the pages. */
+@define-color accent_color #3a64b8;
+@define-color ink #3a64b8;
+@define-color canvas #e4e6ea;
+@define-color palette_bg rgba(255, 255, 255, 0.92);
+@define-color palette_border rgba(0, 0, 0, 0.1);
+
+/* Header bar: flat, part of the window. */
+window.paraphe headerbar.paraphe-header {
+  background: @theme_bg_color;
+  box-shadow: inset 0 -1px alpha(@theme_fg_color, 0.1);
+  min-height: 46px;
+}
+window.paraphe headerbar .title { font-weight: 700; }
+window.paraphe headerbar .subtitle { font-size: 0.85em; opacity: 0.6; }
+.header-toggle { padding: 4px 6px; min-height: 0; }
+.header-toggle:checked { background: alpha(@theme_fg_color, 0.08); box-shadow: none; }
+.save-button { padding: 4px 14px; border-radius: 999px; font-weight: 600; }
+
+/* Canvas */
+.paraphe-canvas { background: @canvas; }
+.pdf-page {
+  background: white;
+  border-radius: 3px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12), 0 4px 14px rgba(0, 0, 0, 0.1);
+}
+.pdf-page:focus-visible { outline: none; }
+
+/* Floating palette and zoom */
+.palette {
+  background: @palette_bg;
+  border-radius: 16px;
+  padding: 5px;
+  box-shadow: 0 0 0 1px @palette_border, 0 6px 22px rgba(0, 0, 0, 0.16), 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+.palette separator { margin: 6px 4px; background: alpha(@theme_fg_color, 0.12); min-width: 1px; }
+.palette button.tool, .palette menubutton.tool > button {
+  min-width: 36px;
+  min-height: 36px;
+  padding: 0;
+  border-radius: 11px;
+  background: none;
+  border: none;
+  box-shadow: none;
+  color: alpha(@theme_fg_color, 0.85);
+}
+.palette button.tool:hover, .palette menubutton.tool > button:hover { background: alpha(@theme_fg_color, 0.07); }
+.palette button.tool:checked,
+.palette menubutton.tool.active-tool > button,
+.palette menubutton.tool > button:checked {
+  background: alpha(@ink, 0.16);
+  color: @ink;
+}
+.palette button.tool:disabled { opacity: 0.35; }
+.palette button.dot {
+  min-width: 26px; min-height: 26px; padding: 0;
+  border-radius: 999px; background: none; border: none; box-shadow: none;
+}
+.palette button.dot:hover { background: alpha(@theme_fg_color, 0.07); }
+.palette button.dot.selected { box-shadow: inset 0 0 0 2px @ink; }
+.palette menubutton.text-size > button { padding: 0 10px; font-weight: 600; font-feature-settings: "tnum"; }
+.palette .zoom-label { min-width: 60px; font-feature-settings: "tnum"; font-weight: 600; }
+
+/* Pages mode */
+.mode-switch button { padding: 4px 14px; font-weight: 600; }
+.mode-switch button:checked { background: alpha(@ink, 0.16); color: @ink; box-shadow: none; }
+.organizer flowboxchild.organizer-card { padding: 10px; border-radius: 12px; }
+.organizer flowboxchild.organizer-card:hover { background: alpha(@theme_fg_color, 0.05); }
+.organizer flowboxchild.organizer-card:selected { background: alpha(@ink, 0.16); }
+.organizer flowboxchild.organizer-card:selected .thumbnail { box-shadow: 0 0 0 3px @ink, 0 2px 6px rgba(0, 0, 0, 0.2); }
+.organizer flowboxchild:selected .page-number { background: @ink; color: white; opacity: 1; }
+.organizer flowboxchild.drop-before { box-shadow: inset 3px 0 @ink; }
+.organizer flowboxchild.drop-after { box-shadow: inset -3px 0 @ink; }
+.palette button.labelled { padding: 0 12px; font-weight: 600; }
+.selection-label { font-weight: 600; opacity: 0.75; font-feature-settings: "tnum"; }
+
+/* Sidebar */
+.paraphe-sidebar { background: @theme_base_color; }
+.paraphe-paned > separator { background: alpha(@theme_fg_color, 0.1); min-width: 1px; }
+.section-title { font-weight: 700; font-size: 0.9em; opacity: 0.7; }
+.thumbnails { background: transparent; padding: 4px 0 12px; }
+.thumbnails row { padding: 8px 10px 6px; border-radius: 10px; margin: 2px 8px; background: none; }
+.thumbnails row:hover { background: alpha(@theme_fg_color, 0.05); }
+.thumbnails row:selected { background: alpha(@ink, 0.14); }
+.thumbnail {
+  background: white;
+  border-radius: 3px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18), 0 0 0 1px rgba(0, 0, 0, 0.05);
+}
+.thumbnails row:selected .thumbnail { box-shadow: 0 0 0 2px @ink, 0 1px 2px rgba(0, 0, 0, 0.18); }
+.page-number { font-size: 0.8em; font-weight: 600; opacity: 0.6; padding: 1px 8px; border-radius: 999px; }
+.thumbnails row:selected .page-number { background: @ink; color: white; opacity: 1; }
+
+/* Welcome */
+.welcome { background: @theme_base_color; }
+.welcome-title { font-size: 2.2em; font-weight: 800; margin-top: 6px; }
+button.pill { border-radius: 999px; padding: 8px 20px; font-weight: 600; }
+.recent-list { background: transparent; }
+.recent-list row { border-radius: 10px; }
+.recent-list row:hover { background: alpha(@theme_fg_color, 0.05); }
+
+/* Form fields laid over the page */
+.pdf-field {
+  background: #e3ecff;
+  border-bottom: 1px solid rgba(58, 100, 184, 0.6);
+  border-radius: 2px;
+}
+.pdf-field entry, .pdf-field text, .pdf-field textview, .pdf-field textview text {
+  background: transparent;
+  color: #111;
+  min-height: 0;
+  padding: 0 2px;
+  margin: 0;
+  border: none;
+  box-shadow: none;
+  caret-color: #111;
+}
+.pdf-field dropdown > button { min-height: 0; padding: 0 4px; background: transparent; box-shadow: none; border: none; color: #111; }
+
+/* Signatures */
+.signature-panel contents { min-width: 300px; }
+button.signature-card {
+  min-height: 64px;
+  padding: 8px 12px;
+  background: white;
+  border-radius: 10px;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.08);
+  border: none;
+}
+button.signature-card:hover { box-shadow: 0 0 0 2px @ink; }
+button.signature-card.new-card { background: none; box-shadow: inset 0 0 0 1px alpha(@theme_fg_color, 0.25); color: alpha(@theme_fg_color, 0.7); }
+button.signature-card.new-card:hover { box-shadow: inset 0 0 0 2px @ink; color: @ink; }
+button.card-delete { min-width: 20px; min-height: 20px; padding: 0; margin: 4px; opacity: 0; background: alpha(@theme_fg_color, 0.1); }
+overlay:hover > button.card-delete { opacity: 1; }
+.signature-pad { background: white; }
+
+/* Dark, set by the window from Granite's colour scheme. */
+window.paraphe.dark .paraphe-canvas { background: #1e1f22; }
+window.paraphe.dark .palette {
+  background: rgba(48, 50, 54, 0.95);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08), 0 6px 22px rgba(0, 0, 0, 0.4);
+}
+window.paraphe.dark button.signature-card.new-card { background: none; }

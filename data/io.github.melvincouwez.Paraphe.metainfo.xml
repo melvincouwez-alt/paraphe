@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.melvincouwez.Paraphe</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>AGPL-3.0-or-later</project_license>
+  <name>Paraphe</name>
+  <summary>Annoter, remplir, signer, fusionner et découper des PDF</summary>
+  <description>
+    <p>Paraphe ouvre les PDF pour les surligner, souligner, barrer, y écrire, y ajouter des notes et des dessins, remplir leurs formulaires et les signer à la main ou avec un certificat. Les pages se réordonnent, pivotent, s'extraient ; plusieurs fichiers se fusionnent et un document se découpe en plusieurs.</p>
+  </description>
+  <launchable type="desktop-id">io.github.melvincouwez.Paraphe.desktop</launchable>
+  <developer id="io.github.melvincouwez"><name>melvincouwez-alt</name></developer>
+  <releases><release version="0.4.0" date="2026-10-04"/><release version="0.3.0" date="2026-09-30"/><release version="0.2.1" date="2026-09-30"/><release version="0.2.0" date="2026-09-30"/><release version="0.1.0" date="2026-09-30"/></releases>
+  <content_rating type="oars-1.1"/>
+</component>
