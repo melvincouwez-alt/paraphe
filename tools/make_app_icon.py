@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-FileCopyrightText: 2026 Paraphe contributors
 """Draw Paraphe's icon (proposal F4) for each size, in the
 theme's construction and without SVG filters, which GTK's icon renderer
 ignores: square tile per size, silver gradient, 1 px darker outline, 1 px
@@ -8,7 +10,7 @@ word PDF under it from 48 px up."""
 
 import os
 
-from icon_pdf import text_path
+import cairo
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DATA = os.path.join(HERE, "..", "data")
@@ -23,6 +25,30 @@ TILES = {
     64: (5, 5, 54, 5.5),
     128: (13, 16, 102, 9.5),
 }
+
+
+def text_path(text, size, x, y, family="Inter Display", weight=cairo.FONT_WEIGHT_BOLD, anchor="start"):
+    """Text as an SVG path (no font needed at display time)."""
+    surface = cairo.RecordingSurface(cairo.CONTENT_ALPHA, None)
+    cr = cairo.Context(surface)
+    cr.select_font_face(family, cairo.FONT_SLANT_NORMAL, weight)
+    cr.set_font_size(size)
+    ext = cr.text_extents(text)
+    if anchor == "middle":
+        x -= ext.x_bearing + ext.width / 2
+    cr.move_to(x, y)
+    cr.text_path(text)
+    d = []
+    for kind, pts in cr.copy_path():
+        if kind == cairo.PATH_MOVE_TO:
+            d.append("M%.2f %.2f" % pts)
+        elif kind == cairo.PATH_LINE_TO:
+            d.append("L%.2f %.2f" % pts)
+        elif kind == cairo.PATH_CURVE_TO:
+            d.append("C%.2f %.2f %.2f %.2f %.2f %.2f" % pts)
+        else:
+            d.append("Z")
+    return "".join(d)
 
 
 def rect(x, y, w, h, r):

@@ -32,8 +32,11 @@ Certains paquets contiennent du code compilé qui reprend d'autres projets :
 - PyMuPDF contient MuPDF (Artifex, AGPL-3.0) et les bibliothèques que MuPDF
   intègre (FreeType, HarfBuzz, jbig2dec, lcms2, libjpeg, OpenJPEG, zlib,
   Gumbo, Tesseract, Leptonica, Brotli), chacune sous sa propre licence libre.
-  Voir https://mupdf.com/licensing et le dossier `thirdparty` des sources de
-  MuPDF.
+  Voir https://artifex.com/licensing et le dossier `thirdparty` des sources de
+  MuPDF (https://github.com/ArtifexSoftware/mupdf/tree/master/thirdparty).
+  Ce logiciel repose en partie sur le travail de l'Independent JPEG Group
+  (libjpeg). Une partie de ce logiciel est sous copyright © The FreeType
+  Project (https://freetype.org).
 - cryptography contient OpenSSL (Apache-2.0) et des modules Rust sous licences
   MIT ou Apache-2.0.
 - lxml contient libxml2 et libxslt (MIT), voir son fichier `LICENSES.txt`.

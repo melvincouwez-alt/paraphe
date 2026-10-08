@@ -8,8 +8,10 @@
   <description>
     <p>Paraphe ouvre les PDF pour les surligner, souligner, barrer, y écrire, y ajouter des notes et des dessins, remplir leurs formulaires et les signer à la main ou avec un certificat. Les pages se réordonnent, pivotent, s'extraient ; plusieurs fichiers se fusionnent et un document se découpe en plusieurs.</p>
   </description>
+  <url type="homepage">https://github.com/melvincouwez-alt/paraphe</url>
+  <url type="bugtracker">https://github.com/melvincouwez-alt/paraphe/issues</url>
   <launchable type="desktop-id">io.github.melvincouwez.Paraphe.desktop</launchable>
   <developer id="io.github.melvincouwez"><name>Les contributeurs de Paraphe</name></developer>
-  <releases><release version="0.5.1" date="2026-10-08"/><release version="0.5.0" date="2026-10-05"/><release version="0.4.0" date="2026-10-04"/><release version="0.3.0" date="2026-09-30"/><release version="0.2.1" date="2026-09-30"/><release version="0.2.0" date="2026-09-30"/><release version="0.1.0" date="2026-09-30"/></releases>
+  <releases><release version="0.5.2" date="2026-10-08"/><release version="0.5.1" date="2026-10-08"/><release version="0.5.0" date="2026-10-05"/><release version="0.4.0" date="2026-10-04"/><release version="0.3.0" date="2026-09-30"/><release version="0.2.1" date="2026-09-30"/><release version="0.2.0" date="2026-09-30"/><release version="0.1.0" date="2026-09-30"/></releases>
   <content_rating type="oars-1.1"/>
 </component>
