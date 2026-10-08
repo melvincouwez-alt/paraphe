@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# SPDX-FileCopyrightText: 2026 melvincouwez-alt
+# SPDX-FileCopyrightText: 2026 Paraphe contributors
 """Text selection between two points, on the words PyMuPDF extracts.
 
 A word is (x0, y0, x1, y1, text, block, line, number), in unrotated page

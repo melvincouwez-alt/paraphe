@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# SPDX-FileCopyrightText: 2026 melvincouwez-alt
+# SPDX-FileCopyrightText: 2026 Paraphe contributors
 """The open PDF: a PyMuPDF document with undo, redo and saving.
 
 Every change goes through edit(): the document is snapshotted before the

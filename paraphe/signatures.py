@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# SPDX-FileCopyrightText: 2026 melvincouwez-alt
+# SPDX-FileCopyrightText: 2026 Paraphe contributors
 """Handwritten signatures: drawn once, kept, placed on any page.
 
 A drawn signature is a list of strokes normalised to its bounding box and

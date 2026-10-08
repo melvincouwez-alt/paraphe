@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# SPDX-FileCopyrightText: 2026 melvincouwez-alt
+# SPDX-FileCopyrightText: 2026 Paraphe contributors
 """Page thumbnails: pick, reorder by drag and drop, rotate, delete, extract,
 and drop PDF files between pages to insert them."""
 

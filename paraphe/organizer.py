@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# SPDX-FileCopyrightText: 2026 melvincouwez-alt
+# SPDX-FileCopyrightText: 2026 Paraphe contributors
 """The "Pages" mode: every page as a large thumbnail, to reorder by drag and
 drop, and a bar of actions on the selection: add a PDF, split, extract,
 duplicate, rotate, delete."""

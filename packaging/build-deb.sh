@@ -1,8 +1,8 @@
 #!/bin/bash
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# SPDX-FileCopyrightText: 2026 melvincouwez-alt
+# SPDX-FileCopyrightText: 2026 Paraphe contributors
 #
-# Build dist/paraphe_<version>_<arch>.deb. PyMuPDF and pyHanko are not
+# Build dist/paraphe_<version>_<arch>.deb and refresh THIRD_PARTY_NOTICES.md. PyMuPDF and pyHanko are not
 # packaged for Ubuntu at the versions Paraphe needs, so they are installed
 # with pip into /usr/lib/paraphe/vendor.
 set -euo pipefail
@@ -36,6 +36,8 @@ for icon in "$root"/data/icons/hicolor/scalable/actions/*.svg; do
     install -Dm644 "$icon" "$stage/usr/share/paraphe/icons/hicolor/scalable/actions/$(basename "$icon")"
 done
 install -Dm644 "$root/LICENSE" "$stage/usr/share/doc/paraphe/copyright"
+python3 "$root/packaging/notices.py" "$lib/vendor" > "$root/THIRD_PARTY_NOTICES.md"
+install -Dm644 "$root/THIRD_PARTY_NOTICES.md" "$stage/usr/share/doc/paraphe/THIRD_PARTY_NOTICES.md"
 
 mkdir -p "$stage/DEBIAN"
 size=$(du -sk "$stage/usr" | cut -f1)
@@ -43,16 +45,16 @@ cat > "$stage/DEBIAN/control" <<CONTROL
 Package: paraphe
 Version: $version
 Architecture: $arch
-Maintainer: melvincouwez-alt <301110918+melvincouwez-alt@users.noreply.github.com>
+Maintainer: Paraphe <301110918+melvincouwez-alt@users.noreply.github.com>
 Installed-Size: $size
 Depends: python3 (>= 3.12), python3-gi, python3-gi-cairo, gir1.2-gtk-4.0, gir1.2-granite-7.0
 Section: graphics
 Priority: optional
 Homepage: https://github.com/melvincouwez-alt/paraphe
-Description: PDF editor for elementary OS
- Annotate PDF files (highlight, underline, strike out, text, notes,
- drawing), fill in forms, sign by hand or with a certificate, reorder,
- rotate, extract, merge and split pages.
+Description: éditeur de PDF pour elementary OS
+ Annoter des PDF (surligner, souligner, barrer, écrire, ajouter des notes,
+ dessiner), remplir des formulaires, signer à la main ou avec un certificat,
+ réordonner, pivoter, extraire, fusionner et découper des pages.
 CONTROL
 cat > "$stage/DEBIAN/postinst" <<'POSTINST'
 #!/bin/sh

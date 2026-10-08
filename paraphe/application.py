@@ -1,10 +1,10 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# SPDX-FileCopyrightText: 2026 melvincouwez-alt
+# SPDX-FileCopyrightText: 2026 Paraphe contributors
 import os
 
 from gi.repository import Gdk, Gio, GLib, Granite, Gtk
 
-from . import APP_ID, VERSION
+from . import APP_ID, VERSION, settings
 from .window import Window
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -46,6 +46,10 @@ class Application(Gtk.Application):
         about = Gio.SimpleAction.new("about", None)
         about.connect("activate", self._about)
         self.add_action(about)
+        self.settings = settings.load()
+        autosave = Gio.SimpleAction.new_stateful("autosave", None, GLib.Variant("b", self.settings["autosave"]))
+        autosave.connect("change-state", self._on_autosave)
+        self.add_action(autosave)
         quit_action = Gio.SimpleAction.new("quit", None)
         quit_action.connect("activate", lambda *a: [w.close() for w in self.get_windows()])
         self.add_action(quit_action)
@@ -60,6 +64,18 @@ class Application(Gtk.Application):
         }
         for action, keys in accels.items():
             self.set_accels_for_action(action, keys)
+
+    def _on_autosave(self, action, value):
+        action.set_state(value)
+        self.settings["autosave"] = value.get_boolean()
+        try:
+            settings.save(self.settings)
+        except OSError:
+            pass
+        for window in self.get_windows():
+            if isinstance(window, Window):
+                window._update_subtitle()
+                window.schedule_autosave()
 
     def do_activate(self):
         window = self.get_active_window() or Window(self)
@@ -80,8 +96,8 @@ class Application(Gtk.Application):
         dialog = Gtk.AboutDialog(
             transient_for=window, modal=True, program_name="Paraphe", version=VERSION,
             logo_icon_name=APP_ID, comments="Annoter, remplir, signer, fusionner et découper des PDF.",
-            license_type=Gtk.License.AGPL_3_0, authors=["melvincouwez-alt"],
-            copyright="© 2026 melvincouwez-alt",
+            license_type=Gtk.License.AGPL_3_0, authors=["Les contributeurs de Paraphe"],
+            copyright="© 2026 les contributeurs de Paraphe",
             website="https://github.com/melvincouwez-alt/paraphe")
         dialog.add_credit_section("Bâti sur", ["PyMuPDF (Artifex, AGPL)", "pyHanko (Matthias Valvekens, MIT)",
                                                "uharfbuzz (HarfBuzz, Apache-2.0)", "fontTools (MIT)",

@@ -1,50 +1,53 @@
 # Paraphe
 
-[Français](README.fr.md)
+[English](README.en.md)
 
-A PDF editor for elementary OS, written in Python with GTK 4 and Granite. The interface is in French.
+Éditeur de PDF pour elementary OS, écrit en Python avec GTK 4 et Granite. L'interface est en français.
 
-- Annotate: highlight, underline, strike out, add text (8 to 24 pt), notes, freehand drawing and rectangles. Each tool keeps its own colour. With the selection tool you can move, edit or delete an annotation (Delete key).
-- Fill in forms: single and multi-line text fields, check boxes, radio buttons, lists.
-- Sign by hand: draw a signature, or import a scan whose background turns transparent. Signatures are kept in `~/.local/share/paraphe/signatures/` and placed with a click or by dragging their size.
-- Sign with a certificate: PKCS#12 file (.p12, .pfx), visible signature (Noto Sans stamp) or invisible one, through pyHanko. As long as you save to the same file, saving is incremental and keeps existing signatures valid.
-- "Pages" mode (Ctrl+Shift+P, button in the header bar): every page at a large size, reordered by drag and drop, with an action bar for the selection (insert a PDF, split, including after the chosen pages, extract, duplicate, rotate, delete). A file can also be dropped between two pages. The thumbnail column of the "Annotate" mode offers the same actions in its menu.
-- Merge several PDF files, split a document (one page per file, every N pages, or by ranges), save a flattened copy where annotations and fields are fixed.
-- Print (Ctrl+P, printer button) the document as shown, with annotations, filled-in fields and signatures.
-- Undo and redo every change (Ctrl+Z, Ctrl+Shift+Z).
+- Annoter : surligner (couleurs pastel), souligner, barrer, écrire du texte directement sur la page (taille au choix, de 8 à 24 pt, retour à la ligne automatique), ajouter des notes, dessiner à main levée, encadrer. Chaque outil garde sa couleur. Avec l'outil de sélection, on peut déplacer, modifier ou supprimer une annotation (touche Suppr). La gomme efface les annotations sur lesquelles on passe.
+- Enregistrement automatique, à activer dans le menu.
+- Remplir les formulaires : champs texte sur une ou plusieurs lignes, cases à cocher, boutons radio, listes.
+- Signer à la main : dessiner une signature, ou importer un scan dont le fond devient transparent. Les signatures sont gardées dans `~/.local/share/paraphe/signatures/` et se posent d'un clic ou en traçant leur taille.
+- Signer avec un certificat : fichier PKCS#12 (.p12, .pfx), signature visible (cachet en Noto Sans) ou invisible, grâce à pyHanko. Tant que le fichier reste le même, l'enregistrement est incrémental et garde les signatures existantes valides.
+- Mode « Pages » (Ctrl+Maj+P, bouton dans la barre d'en-tête) : toutes les pages en grand, à réordonner par glisser-déposer, avec une barre d'actions sur la sélection (ajouter un PDF, découper, y compris après les pages choisies, extraire, dupliquer, pivoter, supprimer). On peut aussi déposer un fichier entre deux pages. La colonne des miniatures du mode « Annoter » garde les mêmes actions dans son menu.
+- Fusionner plusieurs PDF, découper un document (une page par fichier, toutes les N pages ou selon des plages), enregistrer une copie aplatie où annotations et champs sont figés.
+- Imprimer (Ctrl+P, bouton imprimante) le document tel qu'il s'affiche, annotations, champs remplis et signatures compris.
+- Annuler et rétablir chaque modification (Ctrl+Z, Ctrl+Maj+Z).
 
-## Install
+## Installer
 
-Download the `.deb` from the [latest release](https://github.com/melvincouwez-alt/paraphe/releases/latest), then:
+Télécharger le `.deb` de la [dernière version](https://github.com/melvincouwez-alt/paraphe/releases/latest), puis :
 
 ```
 sudo apt install ./paraphe_<version>_amd64.deb
 ```
 
-## Run from source
+## Lancer depuis les sources
 
 ```
 python3 -m venv --system-site-packages .venv
 .venv/bin/pip install pymupdf "pyhanko[opentype]"
-./run.sh file.pdf
+./run.sh fichier.pdf
 ```
 
-You need `python3-gi`, `python3-gi-cairo`, `gir1.2-gtk-4.0` and `gir1.2-granite-7.0`.
+Il faut `python3-gi`, `python3-gi-cairo`, `gir1.2-gtk-4.0` et `gir1.2-granite-7.0`.
 
-## Package
+## Paquet
 
-`packaging/build-deb.sh` builds `dist/paraphe_<version>_amd64.deb`. PyMuPDF and pyHanko are bundled in `/usr/lib/paraphe/vendor`.
+`packaging/build-deb.sh` produit `dist/paraphe_<version>_amd64.deb`. PyMuPDF et pyHanko y sont embarqués dans `/usr/lib/paraphe/vendor`.
 
 ## Tests
 
-`tests/samples.py <folder>` creates sample PDF files (text, form, rotated page). To run the app without a visible window, start it in a headless gala on a private D-Bus session (`tests/nested.sh`). `PARAPHE_DEV_SCRIPT` then runs a Python script that receives the window, and `PARAPHE_DEV_CAPTURE` saves a PNG capture before quitting.
+`tests/samples.py <dossier>` crée des PDF d'exemple (texte, formulaire, page pivotée). Pour lancer l'appli sans fenêtre visible, on peut la démarrer dans un gala headless sur une session D-Bus privée (`tests/nested.sh`). `PARAPHE_DEV_SCRIPT` exécute alors un script Python qui reçoit la fenêtre, et `PARAPHE_DEV_CAPTURE` enregistre une capture PNG avant de quitter.
 
-## License and credits
+## Licence et crédits
 
-AGPL-3.0 or later, the license of PyMuPDF (Artifex), which Paraphe is built on.
+AGPL-3.0 ou ultérieure, la licence de PyMuPDF (Artifex) sur lequel Paraphe repose.
 
-- [PyMuPDF](https://github.com/pymupdf/PyMuPDF) (Artifex): AGPL-3.0
-- [pyHanko](https://github.com/MatthiasValvekens/pyHanko) (Matthias Valvekens): MIT
-- [uharfbuzz](https://github.com/harfbuzz/uharfbuzz): Apache-2.0, and [fontTools](https://github.com/fonttools/fonttools): MIT, for the signature stamp
-- GTK and [Granite](https://github.com/elementary/granite) (elementary)
-- The icon reuses the PDF swoosh of the [elementary icons](https://github.com/elementary/icons) (GPL-3.0)
+- [PyMuPDF](https://github.com/pymupdf/PyMuPDF) (Artifex) : AGPL-3.0
+- [pyHanko](https://github.com/MatthiasValvekens/pyHanko) (Matthias Valvekens) : MIT
+- [uharfbuzz](https://github.com/harfbuzz/uharfbuzz) : Apache-2.0, et [fontTools](https://github.com/fonttools/fonttools) : MIT, pour le cachet de signature
+- GTK et [Granite](https://github.com/elementary/granite) (elementary)
+- L'icône reprend la courbe du symbole PDF des [icônes elementary](https://github.com/elementary/icons) (GPL-3.0)
+
+La liste complète des bibliothèques embarquées dans le paquet `.deb`, avec leurs textes de licence, est dans [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Le paquet l'installe aussi dans `/usr/share/doc/paraphe/`.

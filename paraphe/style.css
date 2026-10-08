@@ -141,3 +141,8 @@ window.paraphe.dark .palette {
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08), 0 6px 22px rgba(0, 0, 0, 0.4);
 }
 window.paraphe.dark button.signature-card.new-card { background: none; }
+
+/* Free text typed on the page */
+.text-editor { outline: 1px dashed alpha(@ink, 0.75); outline-offset: 3px; }
+.text-editor textview, .text-editor textview text { background: transparent; padding: 0; }
+.text-editor.replacing textview text { background: rgba(255, 255, 255, 0.94); }

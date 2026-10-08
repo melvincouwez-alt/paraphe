@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# SPDX-FileCopyrightText: 2026 melvincouwez-alt
+# SPDX-FileCopyrightText: 2026 Paraphe contributors
 """The main window: header bar, tool bar, page sidebar and viewer."""
 
 import os
@@ -7,7 +7,7 @@ import os
 import pymupdf
 from gi.repository import Gdk, Gio, GLib, GObject, Granite, Gtk
 
-from . import dialogs
+from . import dialogs, settings
 from .document import Document
 from .sidebar import PageSidebar
 from .signatures import SignatureMenu
@@ -24,12 +24,22 @@ TOOLS = (
     ("note", "paraphe-note-symbolic", "Ajouter une note"),
     ("draw", "paraphe-draw-symbolic", "Dessiner à main levée"),
     ("rect", "paraphe-rect-symbolic", "Encadrer"),
+    ("erase", "paraphe-erase-symbolic", "Gomme : effacer les annotations touchées"),
 )
 
 PALETTE = (
     (1.0, 0.82, 0.25), (0.55, 0.82, 0.35), (0.35, 0.62, 0.95),
     (0.93, 0.45, 0.62), (0.85, 0.2, 0.22), (0.12, 0.14, 0.2),
 )
+
+# Highlighter colours: light, since the page shows through them.
+HIGHLIGHT_PALETTE = (
+    (1.0, 0.93, 0.55), (0.76, 0.93, 0.66), (0.69, 0.86, 1.0),
+    (1.0, 0.79, 0.87), (1.0, 0.83, 0.64), (0.85, 0.79, 1.0),
+)
+
+# Wait this long after the last change before saving on its own.
+AUTOSAVE_DELAY = 1500
 
 # Sizes offered for free text, in points.
 TEXT_SIZES = (8, 10, 11, 14, 18, 24)
@@ -55,6 +65,7 @@ class Window(Gtk.ApplicationWindow):
         self.document = None
         self._doc_handlers = []
         self._pending_signature = None
+        self._autosave_source = 0
         self._build()
         self._actions()
         self._update_state()
@@ -114,6 +125,9 @@ class Window(Gtk.ApplicationWindow):
         section.append("Imprimer…", "win.print")
         section.append("Enregistrer sous…", "win.save-as")
         section.append("Enregistrer une copie aplatie…", "win.save-flat")
+        menu.append_section(None, section)
+        section = Gio.Menu()
+        section.append("Enregistrement automatique", "app.autosave")
         menu.append_section(None, section)
         section = Gio.Menu()
         section.append("Fusionner des PDF…", "win.merge")
@@ -185,7 +199,7 @@ class Window(Gtk.ApplicationWindow):
         self.tool_buttons = {}
         for name, icon, tip in TOOLS:
             button = Gtk.ToggleButton(icon_name=icon, tooltip_text=tip, action_name="win.tool",
-                                      action_target=GLib.Variant("s", name))
+                                      action_target=GLib.Variant("s", name), focus_on_click=False)
             button.add_css_class("tool")
             bar.append(button)
             self.tool_buttons[name] = button
@@ -200,21 +214,23 @@ class Window(Gtk.ApplicationWindow):
         bar.append(self.colour_separator)
         self.colour_box = Gtk.Box(spacing=2)
         self.colour_buttons = []
-        for colour in PALETTE:
-            area = Gtk.DrawingArea(content_width=18, content_height=18)
-            area.set_draw_func(self._draw_dot, colour)
-            button = Gtk.Button(child=area, tooltip_text="Couleur")
-            button.add_css_class("dot")
-            button.connect("clicked", self._on_colour, colour)
-            self.colour_box.append(button)
-            self.colour_buttons.append((button, area, colour))
+        for palette in (PALETTE, HIGHLIGHT_PALETTE):
+            for colour in palette:
+                area = Gtk.DrawingArea(content_width=18, content_height=18)
+                area.set_draw_func(self._draw_dot, colour)
+                # Off the focus chain: free text being typed keeps the caret.
+                button = Gtk.Button(child=area, tooltip_text="Couleur", focus_on_click=False)
+                button.add_css_class("dot")
+                button.connect("clicked", self._on_colour, colour)
+                self.colour_box.append(button)
+                self.colour_buttons.append((button, palette, colour))
         bar.append(self.colour_box)
         sizes = Gio.Menu()
         for size in TEXT_SIZES:
             sizes.append(f"{size} pt", f"win.text-size::{size}")
         # A custom child, not a label: a labelled menu button adds an arrow.
         self.size_label = Gtk.Label(label="11 pt")
-        self.size_button = Gtk.MenuButton(child=self.size_label, menu_model=sizes,
+        self.size_button = Gtk.MenuButton(child=self.size_label, menu_model=sizes, focus_on_click=False,
                                           tooltip_text="Taille du texte", direction=Gtk.ArrowType.UP)
         self.size_button.add_css_class("tool")
         self.size_button.add_css_class("text-size")
@@ -276,7 +292,9 @@ class Window(Gtk.ApplicationWindow):
         self.colour_box.set_visible(shown)
         self.colour_separator.set_visible(shown)
         self.size_button.set_visible(tool == "text")
-        for button, area, colour in self.colour_buttons:
+        shown_palette = HIGHLIGHT_PALETTE if tool == "highlight" else PALETTE
+        for button, palette, colour in self.colour_buttons:
+            button.set_visible(palette is shown_palette)
             if colour == current:
                 button.add_css_class("selected")
             else:
@@ -286,6 +304,8 @@ class Window(Gtk.ApplicationWindow):
         if self.viewer.tool in self.viewer.colours:
             self.viewer.colours[self.viewer.tool] = colour
             self._refresh_colours()
+            if self.viewer.tool == "text":
+                self.viewer.restyle_text()
 
     # Actions
 
@@ -336,6 +356,7 @@ class Window(Gtk.ApplicationWindow):
         action.set_state(value)
         self.viewer.text_size = int(value.get_string())
         self.size_label.set_label(f"{value.get_string()} pt")
+        self.viewer.restyle_text()
 
     def set_tool(self, name):
         self.actions["tool"].change_state(GLib.Variant("s", name))
@@ -374,6 +395,8 @@ class Window(Gtk.ApplicationWindow):
             text = f"Page {self.viewer.current_page + 1} sur {count}"
         if self.document.modified:
             text += " · modifié"
+        elif self._autosave_on() and self.document.path:
+            text += " · enregistré automatiquement"
         self.subtitle_label.set_label(text)
         self.subtitle_label.set_visible(True)
 
@@ -386,7 +409,7 @@ class Window(Gtk.ApplicationWindow):
             self.document.close()
         self.document = document
         self._doc_handlers = [
-            document.connect("state-changed", lambda d: self._update_state()),
+            document.connect("state-changed", lambda d: (self._update_state(), self.schedule_autosave())),
             document.connect("structure-changed", lambda d: self._on_current_page(self.viewer, self.viewer.current_page)),
         ]
         self.viewer.set_document(document)
@@ -527,16 +550,50 @@ class Window(Gtk.ApplicationWindow):
             return
         self._write(self.document.path, then)
 
-    def _write(self, path, then=None):
+    def _write(self, path, then=None, quiet=False):
         try:
             self.document.save(path)
         except Exception as error:
             self.error("Enregistrement impossible", str(error))
-            return
+            return False
         Gtk.RecentManager.get_default().add_item(Gio.File.new_for_path(path).get_uri())
-        self.toast("Document enregistré")
+        if not quiet:
+            self.toast("Document enregistré")
         if then:
             then()
+        return True
+
+    # Automatic saving: only a file that already has a place on disk, and
+    # never in a way that would break a digital signature.
+
+    def _autosave_on(self):
+        return bool(self.get_application() and self.get_application().settings["autosave"])
+
+    def _can_autosave(self):
+        document = self.document
+        if not (document and document.path and document.modified):
+            return False
+        doc = document.doc
+        return not (document.has_signatures()
+                    and not (doc.name == document.path and doc.can_save_incrementally()))
+
+    def schedule_autosave(self):
+        if self._autosave_source:
+            GLib.source_remove(self._autosave_source)
+            self._autosave_source = 0
+        if self._autosave_on() and self.document and self.document.modified:
+            self._autosave_source = GLib.timeout_add(AUTOSAVE_DELAY, self._autosave)
+
+    def _autosave(self):
+        self._autosave_source = 0
+        if not self._autosave_on() or not self._can_autosave():
+            return GLib.SOURCE_REMOVE
+        # Not while typing: text and fields are written when the typing ends.
+        if self.viewer.text_editor or isinstance(self.get_focus(), (Gtk.Text, Gtk.TextView)):
+            self._autosave_source = GLib.timeout_add(AUTOSAVE_DELAY, self._autosave)
+            return GLib.SOURCE_REMOVE
+        self._write(self.document.path, quiet=True)
+        return GLib.SOURCE_REMOVE
 
     def _confirm_break_signatures(self, then):
         dialog = Granite.MessageDialog.with_image_from_icon_name(
@@ -886,6 +943,8 @@ class Window(Gtk.ApplicationWindow):
             return False
         self.viewer.commit_fields()
         if not self.document.modified:
+            return False
+        if self._autosave_on() and self._can_autosave() and self._write(self.document.path, quiet=True):
             return False
         dialog = Granite.MessageDialog.with_image_from_icon_name(
             f"Enregistrer les modifications de « {self.document.title} » ?",

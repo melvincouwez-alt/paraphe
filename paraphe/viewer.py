@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# SPDX-FileCopyrightText: 2026 melvincouwez-alt
+# SPDX-FileCopyrightText: 2026 Paraphe contributors
 """The scrolling page view and every tool that works on a page.
 
 Coordinates: PyMuPDF keeps annotations, text and fields in unrotated page
@@ -9,6 +9,7 @@ page's derotation matrix. Overlays take the opposite way.
 """
 
 import math
+import re
 
 import pymupdf
 from gi.repository import Gdk, GLib, GObject, Graphene, Gtk
@@ -24,9 +25,15 @@ CLICK_SLOP = 4
 
 TEXT_TOOLS = ("highlight", "underline", "strike")
 FIELD_TINT = (0.20, 0.45, 0.90, 0.10)
+ERASE_TOLERANCE = 6  # pixels around the eraser that still touch an annotation
+
+# Free text: PDF line height, room under the last line, gap kept to the page edge.
+TEXT_LEADING = 1.2
+TEXT_MARGIN = 18
+TEXT_FONT = "helv"
 
 DEFAULT_COLOURS = {
-    "highlight": (1.0, 0.82, 0.25),
+    "highlight": (1.0, 0.93, 0.55),
     "underline": (0.35, 0.62, 0.95),
     "strike": (0.85, 0.2, 0.22),
     "text": (0.12, 0.14, 0.2),
@@ -34,6 +41,11 @@ DEFAULT_COLOURS = {
     "draw": (0.35, 0.62, 0.95),
     "rect": (0.85, 0.2, 0.22),
 }
+
+# Annotation types the eraser never touches.
+NOT_ERASABLE = {pymupdf.PDF_ANNOT_POPUP, pymupdf.PDF_ANNOT_WIDGET, pymupdf.PDF_ANNOT_LINK}
+MARKUP = {pymupdf.PDF_ANNOT_HIGHLIGHT, pymupdf.PDF_ANNOT_UNDERLINE,
+          pymupdf.PDF_ANNOT_STRIKE_OUT, pymupdf.PDF_ANNOT_SQUIGGLY}
 
 # Annotation types the select tool can move by changing their rectangle.
 MOVABLE = {
@@ -88,6 +100,8 @@ class Viewer(Gtk.ScrolledWindow):
         # Selected annotation: (page index, xref); selected text: (page, words).
         self.selected_annot = None
         self.selected_text = None
+        # The free text being typed on a page, if any.
+        self.text_editor = None
 
         self.box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=PAGE_GAP)
         self.box.set_halign(Gtk.Align.CENTER)
@@ -129,6 +143,10 @@ class Viewer(Gtk.ScrolledWindow):
 
     def rebuild(self, keep_place=False):
         anchor = self._place() if keep_place else None
+        # Pages may have moved under free text still being typed: drop it.
+        if self.text_editor:
+            self.text_editor._done = True
+            self.text_editor = None
         self.clear_selection(emit=False)
         self._cache.clear()
         self._words.clear()
@@ -295,6 +313,7 @@ class Viewer(Gtk.ScrolledWindow):
     # Tools
 
     def set_tool(self, tool):
+        self.commit_text()
         self.tool = tool
         self.clear_selection()
         for page in self.pages:
@@ -335,8 +354,21 @@ class Viewer(Gtk.ScrolledWindow):
     # Fields: filled values waiting in an entry go to the document before
     # saving, since the user may press Ctrl+S with the caret still inside.
     def commit_fields(self):
+        self.commit_text()
         for page in self.pages:
             page.commit_fields()
+
+    def commit_text(self):
+        if self.text_editor:
+            self.text_editor.finish()
+
+    def restyle_text(self):
+        """The palette changed colour or size while free text is being typed."""
+        editor = self.text_editor
+        if editor:
+            editor.colour = self.colours["text"]
+            editor.size = self.text_size
+            editor.page_view.queue_allocate()
 
 
 class PageView(Gtk.Widget):
@@ -356,6 +388,8 @@ class PageView(Gtk.Widget):
         self._stroke = []
         self._hover = None
         self._editors = []  # (FieldEditor, unrotated rect)
+        self._text = None   # TextEditor open on this page
+        self._erase = []    # xrefs the eraser went over during a drag
         self._fields = []   # (xref, type, unrotated rect) for clickable boxes
 
         drag = Gtk.GestureDrag(button=Gdk.BUTTON_PRIMARY)
@@ -400,6 +434,8 @@ class PageView(Gtk.Widget):
         return size, size, -1, -1
 
     def do_size_allocate(self, width, height, baseline):
+        if self._text:
+            self._allocate_text(width, height)
         if not self._editors:
             return
         page = self._page()
@@ -411,6 +447,17 @@ class PageView(Gtk.Widget):
             transform = Gsk_translate(x, y)
             editor.allocate(max(1, int(w)), max(1, int(h)), -1, transform)
 
+    def _allocate_text(self, width, height):
+        editor = self._text
+        zoom = self.zoom
+        editor.set_zoom(zoom)
+        w = max(1, int(round(editor.width * zoom)))
+        editor.measure(Gtk.Orientation.HORIZONTAL, -1)
+        natural = editor.measure(Gtk.Orientation.VERTICAL, w)[1]
+        # Text growing past the bottom of the page pushes the box up.
+        editor.shown_top = max(0, min(editor.top, (height - natural) / zoom - 2))
+        editor.allocate(w, natural, -1, Gsk_translate(editor.left * zoom, editor.shown_top * zoom))
+
     def zoom_changed(self):
         self.queue_resize()
 
@@ -418,7 +465,7 @@ class PageView(Gtk.Widget):
         cursors = {
             "select": "default", "highlight": "text", "underline": "text",
             "strike": "text", "text": "text", "note": "cell", "draw": "crosshair",
-            "rect": "crosshair", "signature": "copy", "zone": "crosshair",
+            "rect": "crosshair", "signature": "copy", "zone": "crosshair", "erase": "crosshair",
         }
         self.set_cursor_from_name(cursors.get(self.viewer.tool, "default"))
         self._hover = None
@@ -443,6 +490,8 @@ class PageView(Gtk.Widget):
         self._snapshot_tool(snapshot, page)
         for editor, _ in self._editors:
             self.snapshot_child(editor, snapshot)
+        if self._text:
+            self.snapshot_child(self._text, snapshot)
 
     def _snapshot_selection(self, snapshot, page):
         viewer = self.viewer
@@ -498,6 +547,23 @@ class PageView(Gtk.Widget):
             for point in self._stroke[1:]:
                 cr.line_to(*point)
             cr.stroke()
+        if tool == "erase" and self._drag:
+            for xref in self._erase:
+                annot = page.load_annot(xref)
+                if annot:
+                    x, y, w, h = self.to_widget(annot.rect, page)
+                    snapshot.append_color(rgba(0.85, 0.2, 0.22, 0.12), grect(x - 2, y - 2, w + 4, h + 4))
+                    self._frame(snapshot, x - 2, y - 2, w + 4, h + 4, rgba(0.85, 0.2, 0.22, 0.8), 1)
+            if self._stroke:
+                cr = snapshot.append_cairo(grect(0, 0, self.get_width(), self.get_height()))
+                cr.set_source_rgba(0.45, 0.47, 0.52, 0.35)
+                cr.set_line_width(2 * ERASE_TOLERANCE)
+                cr.set_line_cap(1)
+                cr.set_line_join(1)
+                cr.move_to(*self._stroke[0])
+                for point in self._stroke:
+                    cr.line_to(*point)
+                cr.stroke()
         if tool == "signature" and self._hover and not self._drag and viewer.signature:
             self._snapshot_signature(snapshot, self._signature_box(*self._hover), 0.45)
 
@@ -528,12 +594,26 @@ class PageView(Gtk.Widget):
             self.queue_draw()
 
     def _on_begin(self, gesture, x, y):
-        self.grab_focus()
         viewer = self.viewer
+        editor = viewer.text_editor
+        if editor:
+            if editor.page_view is self and editor.contains_point(x, y):
+                gesture.set_state(Gtk.EventSequenceState.DENIED)
+                return
+            # A click away from the text being typed only ends it.
+            editor.finish()
+            gesture.set_state(Gtk.EventSequenceState.DENIED)
+            self._drag = None
+            return
+        self.grab_focus()
         self._drag = ((x, y), (x, y))
         self._moving = False
         if viewer.tool == "draw":
             self._stroke = [(x, y)]
+        elif viewer.tool == "erase":
+            self._stroke = [(x, y)]
+            self._erase = []
+            self._erase_at(x, y)
         elif viewer.tool == "select":
             hit = self._hit_annot(x, y)
             if viewer.selected_annot and hit == viewer.selected_annot:
@@ -549,6 +629,9 @@ class PageView(Gtk.Widget):
         self._drag = ((x0, y0), (x0 + dx, y0 + dy))
         if self.viewer.tool == "draw":
             self._stroke.append((x0 + dx, y0 + dy))
+        elif self.viewer.tool == "erase":
+            self._stroke.append((x0 + dx, y0 + dy))
+            self._erase_at(x0 + dx, y0 + dy)
         self.queue_draw()
 
     def _on_end(self, gesture, dx, dy):
@@ -583,6 +666,29 @@ class PageView(Gtk.Widget):
                 if best is None or area < best[0]:
                     best = (area, annot.xref)
         return (self.index, best[1]) if best else None
+
+    def _erase_at(self, x, y):
+        """Note every annotation under the eraser at this widget point."""
+        page = self._page()
+        point = self.to_page(x, y)
+        tol = ERASE_TOLERANCE / self.zoom
+        for annot in page.annots():
+            kind = annot.type[0]
+            if kind in NOT_ERASABLE or annot.xref in self._erase:
+                continue
+            if point not in annot.rect + (-tol, -tol, tol, tol):
+                continue
+            if kind == pymupdf.PDF_ANNOT_INK:
+                # A stroke is only touched near its line, not anywhere in its box.
+                reach = tol + (annot.border.get("width") or 1)
+                if not any(_near(point, stroke, reach) for stroke in annot.vertices or []):
+                    continue
+            elif kind in MARKUP and annot.vertices:
+                v = annot.vertices
+                rects = [pymupdf.Quad(*v[i:i + 4]).rect for i in range(0, len(v) - 3, 4)]
+                if not any(point in r + (-tol, -tol, tol, tol) for r in rects):
+                    continue
+            self._erase.append(annot.xref)
 
     def _hit_link(self, x, y):
         point = self.to_page(x, y)
@@ -743,29 +849,104 @@ class PageView(Gtk.Widget):
         self._edit(lambda doc: placement(doc[self.index]))
         self.viewer.emit("notify-user", "Signature ajoutée")
 
+    def _finish_erase(self, x0, y0, x1, y1, click, **_):
+        xrefs, self._erase = self._erase, []
+        if not xrefs:
+            return
+
+        def change(doc):
+            page = doc[self.index]
+            for xref in xrefs:
+                annot = page.load_annot(xref)
+                if annot:
+                    page.delete_annot(annot)
+        self._edit(change)
+
     def _finish_text(self, x0, y0, x1, y1, click, **_):
-        colour = self.viewer.colours["text"]
+        hit = self._hit_annot(x0, y0) if click else None
+        if hit:
+            annot = self._page().load_annot(hit[1])
+            if annot and annot.type[0] == pymupdf.PDF_ANNOT_FREE_TEXT:
+                self.edit_free_text(hit[1])
+                return
         size = self.viewer.text_size
+        page_w, page_h = self.viewer.sizes[self.index]
+        # The box is laid out in displayed space so text reads upright.
+        if click or abs(x1 - x0) < 24:
+            left, top = x0 / self.zoom, y0 / self.zoom - size * 0.8
+            width = None
+        else:
+            left, top = min(x0, x1) / self.zoom, min(y0, y1) / self.zoom
+            width = abs(x1 - x0) / self.zoom
+        self.open_text(left, top, width, size, self.viewer.colours["text"])
 
-        def add(text):
-            lines = text.split("\n")
-            width = max(pymupdf.get_text_length(line, "helv", size) for line in lines) + 6
-            height = size * 1.25 * len(lines) + 4
-            page = self._page()
-            # The box is laid out in displayed space so text reads upright.
-            left, top = x0 / self.zoom, y0 / self.zoom - size * 0.9
-            shown = pymupdf.Rect(left, top, left + width, top + height)
+    def open_text(self, left, top, width, size, colour, text="", xref=None):
+        """Type free text straight on the page; width None runs to the page edge."""
+        page_w, page_h = self.viewer.sizes[self.index]
+        least = min(160, page_w - 2 * TEXT_MARGIN)
+        if width is None:
+            if page_w - TEXT_MARGIN - left < least:
+                left = page_w - TEXT_MARGIN - least
+            width = page_w - TEXT_MARGIN - left
+        left = max(2, left)
+        width = max(24, min(width, page_w - 2 - left))
+        editor = TextEditor(self, left, max(0, top), width, size, colour, text, xref)
+        editor.set_parent(self)
+        self._text = editor
+        self.viewer.text_editor = editor
+        self.queue_allocate()
+        self.queue_draw()
+        GLib.idle_add(lambda: editor.view.grab_focus() and False)
+
+    def edit_free_text(self, xref):
+        page = self._page()
+        annot = page.load_annot(xref)
+        if not annot:
+            return
+        shown = (annot.rect * page.rotation_matrix).normalize()
+        size, colour = _free_text_style(page.parent, xref, self.viewer)
+        self.open_text(shown.x0, shown.y0, None, size, colour, annot.info.get("content", ""), xref)
+
+    def close_text(self, editor, text):
+        """Write what was typed, then remove the editor from the page."""
+        if self._text is editor:
+            self._text = None
+        if self.viewer.text_editor is editor:
+            self.viewer.text_editor = None
+        editor.unparent()
+        self.queue_allocate()
+        self.queue_draw()
+        self.grab_focus()
+        if not text.strip():
+            if editor.xref:
+                self._edit(lambda doc: doc[self.index].delete_annot(doc[self.index].load_annot(editor.xref)))
+            return
+        size, colour = editor.size, editor.colour
+        lines = wrap_text(text, size, editor.width)
+        width = max(pymupdf.get_text_length(line, TEXT_FONT, size) for line in lines) + 3
+        height = size * TEXT_LEADING * len(lines) + size * 0.45
+        page_w, page_h = self.viewer.sizes[self.index]
+        top = max(0, min(editor.shown_top, page_h - height - 1))
+        shown = pymupdf.Rect(editor.left, top, editor.left + width, top + height)
+        if editor.xref:
+            old = self._page().load_annot(editor.xref)
+            if old and old.info.get("content", "") == text and \
+                    (size, colour) == _free_text_style(self._page().parent, editor.xref, self.viewer):
+                return
+
+        def change(doc):
+            page = doc[self.index]
+            if editor.xref:
+                old = page.load_annot(editor.xref)
+                if old:
+                    page.delete_annot(old)
             rect = (shown * page.derotation_matrix).normalize()
-
-            def change(doc):
-                page = doc[self.index]
-                annot = page.add_freetext_annot(
-                    rect, text, fontsize=size, fontname="helv", text_color=colour,
-                    rotate=page.rotation)
-                annot.set_info(title=_author())
-                annot.update()
-            self._edit(change)
-        self._text_popover(x0, y0, "Ajouter du texte", "", add, multiline=True)
+            annot = page.add_freetext_annot(
+                rect, text, fontsize=size, fontname=TEXT_FONT, text_color=colour,
+                rotate=page.rotation)
+            annot.set_info(title=_author())
+            annot.update()
+        self._edit(change)
 
     def _finish_note(self, x0, y0, x1, y1, click, **_):
         point = self.to_page(x0, y0)
@@ -838,7 +1019,12 @@ class PageView(Gtk.Widget):
         for side in ("top", "bottom", "start", "end"):
             getattr(box, f"set_margin_{side}")(4)
         kind = annot.type[0]
-        if kind in (pymupdf.PDF_ANNOT_TEXT, pymupdf.PDF_ANNOT_FREE_TEXT):
+        if kind == pymupdf.PDF_ANNOT_FREE_TEXT:
+            edit = Gtk.Button(label="Modifier")
+            edit.connect("clicked", lambda b: (popover.popdown(), self.viewer.clear_selection(),
+                                               self.edit_free_text(xref)))
+            box.append(edit)
+        elif kind == pymupdf.PDF_ANNOT_TEXT:
             edit = Gtk.Button(label="Modifier")
             edit.connect("clicked", lambda b: (popover.popdown(), self._edit_annot_text(xref, x, y)))
             box.append(edit)
@@ -911,6 +1097,11 @@ class PageView(Gtk.Widget):
         for editor, _ in self._editors:
             editor.unparent()
         self._editors = []
+        if self._text:
+            if self.viewer.text_editor is self._text:
+                self.viewer.text_editor = None
+            self._text.unparent()
+            self._text = None
         Gtk.Widget.do_dispose(self)
 
 
@@ -985,6 +1176,122 @@ class FieldEditor(Gtk.Box):
             return
         value, self._pending = self._pending, None
         self.page_view.write_field(self.xref, value)
+
+
+class TextEditor(Gtk.Box):
+    """Free text typed on the page in the font, size and colour it will have,
+    wrapped at the width of its box. Escape, Ctrl+Enter or a click elsewhere
+    ends it."""
+
+    __gtype_name__ = "ParapheTextEditor"
+
+    def __init__(self, page_view, left, top, width, size, colour, text="", xref=None):
+        super().__init__()
+        self.page_view = page_view
+        # Displayed page points; shown_top is top once kept inside the page.
+        self.left, self.top, self.shown_top, self.width = left, top, top, width
+        self.size, self.colour, self.xref = size, colour, xref
+        self._done = False
+        self._style = None
+        self.add_css_class("text-editor")
+        if xref:
+            self.add_css_class("replacing")
+        self.view = Gtk.TextView(wrap_mode=Gtk.WrapMode.WORD_CHAR, accepts_tab=False, hexpand=True,
+                                 left_margin=0, right_margin=0, top_margin=0, bottom_margin=0)
+        self.view.get_buffer().set_text(text)
+        self.view.get_buffer().connect("changed", lambda b: page_view.queue_allocate())
+        self._css = Gtk.CssProvider()
+        self.view.get_style_context().add_provider(self._css, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION + 1)
+        keys = Gtk.EventControllerKey()
+        keys.connect("key-pressed", self._on_key)
+        self.view.add_controller(keys)
+        self.append(self.view)
+
+    def set_zoom(self, zoom):
+        r, g, b = (round(c * 255) for c in self.colour)
+        style = (round(self.size * zoom, 2), r, g, b)
+        if style == self._style:
+            return
+        self._style = style
+        # Liberation Sans and Arimo share Helvetica's widths: lines break as in the PDF.
+        self._css.load_from_string(
+            f"* {{ font-family: Helvetica, 'Liberation Sans', Arimo, sans-serif; font-size: {style[0]}px; "
+            f"line-height: {TEXT_LEADING}; color: rgb({r}, {g}, {b}); caret-color: rgb({r}, {g}, {b}); }}")
+
+    def contains_point(self, x, y):
+        zoom = self.page_view.zoom
+        return (self.left * zoom - 6 <= x <= (self.left + self.width) * zoom + 6
+                and self.shown_top * zoom - 6 <= y <= self.shown_top * zoom + self.get_height() + 6)
+
+    def _on_key(self, controller, keyval, code, state):
+        if keyval == Gdk.KEY_Escape or (
+                keyval in (Gdk.KEY_Return, Gdk.KEY_KP_Enter) and state & Gdk.ModifierType.CONTROL_MASK):
+            self.finish()
+            return True
+        return False
+
+    def finish(self):
+        if self._done:
+            return
+        self._done = True
+        buffer = self.view.get_buffer()
+        text = buffer.get_text(buffer.get_start_iter(), buffer.get_end_iter(), False).rstrip()
+        self.page_view.close_text(self, text)
+
+
+def wrap_text(text, size, width):
+    """Lines of text no wider than width points in the free text font,
+    broken between words like the PDF viewer does, inside words if needed."""
+    def length(s):
+        return pymupdf.get_text_length(s, TEXT_FONT, size)
+    lines = []
+    for paragraph in text.split("\n"):
+        line = ""
+        for word in re.split(r"(?<= )", paragraph):
+            if length(line + word.rstrip()) <= width or not line:
+                line += word
+            else:
+                lines.append(line.rstrip())
+                line = word
+            while length(line.rstrip()) > width and len(line) > 1:
+                cut = len(line) - 1
+                while cut > 1 and length(line[:cut]) > width:
+                    cut -= 1
+                lines.append(line[:cut])
+                line = line[cut:]
+        lines.append(line.rstrip())
+    return lines or [""]
+
+
+def _free_text_style(doc, xref, viewer):
+    """Font size and colour of a free text, read from its default appearance."""
+    size, colour = viewer.text_size, viewer.colours["text"]
+    kind, da = doc.xref_get_key(xref, "DA")
+    if kind == "string":
+        found = re.search(r"([\d.]+)\s+Tf", da)
+        if found:
+            size = float(found.group(1))
+        found = re.search(r"([\d.]+)\s+([\d.]+)\s+([\d.]+)\s+rg", da)
+        if found:
+            colour = tuple(float(v) for v in found.groups())
+        else:
+            found = re.search(r"([\d.]+)\s+g\b", da)
+            if found:
+                colour = (float(found.group(1)),) * 3
+    return size, colour
+
+
+def _near(point, stroke, reach):
+    """Whether point lies within reach of the polyline stroke."""
+    if len(stroke) == 1:
+        return math.hypot(point.x - stroke[0][0], point.y - stroke[0][1]) <= reach
+    for (ax, ay), (bx, by) in zip(stroke, stroke[1:]):
+        dx, dy = bx - ax, by - ay
+        span = dx * dx + dy * dy
+        t = 0 if span == 0 else max(0, min(1, ((point.x - ax) * dx + (point.y - ay) * dy) / span))
+        if math.hypot(point.x - ax - t * dx, point.y - ay - t * dy) <= reach:
+            return True
+    return False
 
 
 def Gsk_translate(x, y):
