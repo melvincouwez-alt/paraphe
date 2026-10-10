@@ -6,7 +6,7 @@
   <name>Paraphe</name>
   <summary>Annoter, remplir, signer, fusionner et découper des PDF</summary>
   <description>
-    <p>Paraphe ouvre les PDF pour les surligner, souligner, barrer, y écrire, y ajouter des notes et des dessins, remplir leurs formulaires et les signer à la main ou avec un certificat. Les pages se réordonnent, pivotent, s'extraient ; plusieurs fichiers se fusionnent et un document se découpe en plusieurs.</p>
+    <p>Paraphe sert à surligner, souligner et barrer le texte des PDF, à y écrire, à y ajouter des notes et des dessins, à remplir leurs formulaires et à les signer de façon manuscrite ou avec un certificat. Paraphe réordonne, pivote et extrait les pages, fusionne plusieurs fichiers et découpe un document en plusieurs.</p>
   </description>
   <url type="homepage">https://github.com/melvincouwez-alt/paraphe</url>
   <url type="bugtracker">https://github.com/melvincouwez-alt/paraphe/issues</url>

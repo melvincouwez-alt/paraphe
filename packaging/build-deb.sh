@@ -53,8 +53,8 @@ Priority: optional
 Homepage: https://github.com/melvincouwez-alt/paraphe
 Description: éditeur de PDF pour elementary OS
  Annoter des PDF (surligner, souligner, barrer, écrire, ajouter des notes,
- dessiner), remplir des formulaires, signer à la main ou avec un certificat,
- réordonner, pivoter, extraire, fusionner et découper des pages.
+ dessiner), remplir des formulaires, signer de façon manuscrite ou avec un
+ certificat, réordonner, pivoter, extraire, fusionner et découper des pages.
 CONTROL
 cat > "$stage/DEBIAN/postinst" <<'POSTINST'
 #!/bin/sh
